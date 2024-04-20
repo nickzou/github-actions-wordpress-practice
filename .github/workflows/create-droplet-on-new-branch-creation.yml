@@ -1,0 +1,85 @@
+name: Create Droplet on Branch Creation
+
+env:
+  BRANCH_NAME: ${{ github.ref_name }}
+  DOMAIN_NAME: pandacalculus.com
+
+on:
+  create:
+
+jobs:
+  branch-created:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        # Assuming you want to run a doctl command right after setting it up,
+        # you might need to use a `run` step if `args` is not a valid input.
+
+      - name: Generate SSH key
+        run: |
+          ssh-keygen -t rsa -b 4096 -C "github-action@mydomain.com" -f ${{ github.workspace }}/deploy_key -N ""
+          PUBLIC_KEY=$(cat ${{ github.workspace }}/deploy_key.pub)
+          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_ENV
+
+      - name: Add SSH key to DigitalOcean
+        run: |
+          echo "${{ env.PUBLIC_KEY }}" >> public_key.tmp
+          doctl compute ssh-key import ${{ env.BRANCH_NAME }} --public-key-file public_key.tmp
+
+      - name: Get SSH key ID
+        run: |
+          KEY_ID=$(doctl compute ssh-key list --format ID,Name --no-header | grep "${{ env.BRANCH_NAME }}" | awk '{print $1}')
+          echo "KEY_ID=$KEY_ID" >> $GITHUB_ENV
+
+      - name: Create Droplet
+        run: |
+          read DROPLET_ID DROPLET_IP <<< $(doctl compute droplet create ${{ env.BRANCH_NAME }} --size s-2vcpu-4gb --image wordpress-20-04" --region nyc3 --ssh-keys ${{env.KEY_ID}} --format ID,PublicIPv4 --no-header --wait)
+          echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
+          echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Move Droplet to Designated Project
+        run: doctl projects resources assign ${{ secrets.DIGITALOCEAN_PROJECT_ID }} --resource=do:droplet:${{ env.DROPLET_ID }}
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Wait for droplet SSH to be ready
+        run: |
+          until ssh -i ${{ github.workspace }}/deploy_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@${{ env.DROPLET_IP }} echo "SSH is up"
+          do
+            echo "Waiting for SSH to be active..."
+            sleep 30
+          done
+
+      #   - name: Transfer index.html to droplet
+      #     run: |
+      #       scp -i ${{ github.workspace }}/deploy_key -o StrictHostKeyChecking=no ./index.html root@${{ env.DROPLET_IP }}:/var/www/html/
+
+      #   - name: Add A record for subdomain
+      #     run: |
+      #       doctl compute domain records create ${{ env.DOMAIN_NAME }} --record-type A --record-name ${{ env.BRANCH_NAME }} --record-data ${{ env.DROPLET_IP }} --record-ttl 3600
+      #     env:
+      #       DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      #   - name: Install Let's Encrypt
+      #     run: |
+      #       doctl compute certificate create --type lets_encrypt --name ${{ env.BRANCH_NAME }} --dns-names pandacalculus.com
+      #     env:
+      #       DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Remove SSH key from DigitalOcean
+        run: |
+          SSH_KEY_ID=$(doctl compute ssh-key list --format ID,Name --no-header | grep "${{ env.BRANCH_NAME }}" | awk '{print $1}')
+          if [[ -n "$SSH_KEY_ID" ]]; then
+            doctl compute ssh-key delete $SSH_KEY_ID --force
+          else
+            echo "No SSH key found for deletion."
+          fi
