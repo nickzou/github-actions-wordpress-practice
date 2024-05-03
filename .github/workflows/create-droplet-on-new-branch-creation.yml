@@ -40,7 +40,7 @@ jobs:
 
       - name: Create Droplet
         run: |
-          read DROPLET_ID DROPLET_IP <<< $(doctl compute droplet create ${{ env.BRANCH_NAME }} --size s-2vcpu-4gb --image ubuntu-20-04-x64 --region nyc3 --ssh-keys ${{env.KEY_ID}} --format ID,PublicIPv4 --no-header --wait)
+          read DROPLET_ID DROPLET_IP <<< $(doctl compute droplet create ${{ env.BRANCH_NAME }} --size s-2vcpu-4gb --image wordpress-20-04 --region nyc3 --ssh-keys ${{env.KEY_ID}} --format ID,PublicIPv4 --no-header --wait)
           echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
         env:
@@ -58,60 +58,6 @@ jobs:
             echo "Waiting for SSH to be active..."
             sleep 30
           done
-
-      - name: Install WordPress
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ env.DROPLET_IP }}
-          username: root
-          key: ${{ github.workspace }}/deploy_key
-          script: |
-            # Update and install Nginx, PHP, MySQL
-            sudo apt update && sudo apt upgrade -y
-            sudo apt install nginx php-fpm php-mysql mysql-server -y
-            sudo systemctl start nginx
-            sudo systemctl enable nginx
-
-            # Secure MySQL installation
-            sudo mysql -e "CREATE USER 'wordpressuser'@'localhost' IDENTIFIED BY 'password123';"
-            sudo mysql -e "CREATE DATABASE wordpress DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;"
-            sudo mysql -e "GRANT ALL ON wordpress.* TO 'wordpressuser'@'localhost';"
-            sudo mysql -e "FLUSH PRIVILEGES;"
-
-            # Install WordPress
-            wget https://wordpress.org/latest.tar.gz
-            tar -xzf latest.tar.gz
-            sudo mv wordpress/* /var/www/html/
-            sudo chown -R www-data:www-data /var/www/html
-            sudo chmod -R 755 /var/www/html
-
-            # Configure Nginx to serve WordPress
-            echo "server {
-                listen 80;
-                server_name ${{env.DROPLET_IP}};
-
-                root /var/www/html;
-                index index.php index.html index.htm;
-
-                location / {
-                    try_files \$uri \$uri/ /index.php?\$args;
-                }
-
-                location ~ \.php$ {
-                    include snippets/fastcgi-php.conf;
-                    fastcgi_pass unix:/var/run/php/php7.4-fpm.sock; # Ensure PHP version matches
-                    fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-                    include fastcgi_params;
-                }
-
-                location ~ /\.ht {
-                    deny all;
-                }
-            }" | sudo tee /etc/nginx/sites-available/wordpress
-            sudo ln -s /etc/nginx/sites-available/wordpress /etc/nginx/sites-enabled/
-            sudo unlink /etc/nginx/sites-enabled/default
-            sudo systemctl reload nginx
-            sudo systemctl restart php7.4-fpm  # Ensure PHP version matches
 
       #   - name: Transfer index.html to droplet
       #     run: |
