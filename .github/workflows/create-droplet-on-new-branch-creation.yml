@@ -40,7 +40,7 @@ jobs:
 
       - name: Create Droplet
         run: |
-          read DROPLET_ID DROPLET_IP <<< $(doctl compute droplet create ${{ env.BRANCH_NAME }} --size s-2vcpu-4gb --image wordpress-20-04 --region nyc3 --ssh-keys ${{env.KEY_ID}} --format ID,PublicIPv4 --no-header --wait)
+          read DROPLET_ID DROPLET_IP <<< $(doctl compute droplet create ${{ env.BRANCH_NAME }} --size s-2vcpu-4gb --image ubuntu-20-04 --region nyc3 --ssh-keys ${{env.KEY_ID}} --format ID,PublicIPv4 --no-header --wait)
           echo "DROPLET_ID=$DROPLET_ID" >> $GITHUB_ENV
           echo "DROPLET_IP=$DROPLET_IP" >> $GITHUB_ENV
         env:
