@@ -59,6 +59,9 @@ jobs:
             sleep 30
           done
 
+      - name: Start wp-env
+        uses: godaddy-wordpress/setup-wp-env@v1
+
       #   - name: Transfer index.html to droplet
       #     run: |
       #       scp -i ${{ github.workspace }}/deploy_key -o StrictHostKeyChecking=no ./index.html root@${{ env.DROPLET_IP }}:/var/www/html/
