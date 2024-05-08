@@ -46,8 +46,13 @@ jobs:
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
+      # - name: Move Droplet to Designated Project
+      #   run: doctl projects resources assign ${{ secrets.DIGITALOCEAN_PROJECT_ID }} --resource=do:droplet:${{ env.DROPLET_ID }}
+      #   env:
+      #     DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
       - name: Move Droplet to Designated Project
-        run: doctl projects resources assign ${{ secrets.DIGITALOCEAN_PROJECT_ID }} --resource=do:droplet:${{ env.DROPLET_ID }}
+        run: doctl projects resources assign 7474349a-73a2-4aa7-9e17-cc8ae99eaf04 --resource=do:droplet:${{ env.DROPLET_ID }}
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
